@@ -3,7 +3,7 @@ package com.lyennon.remoting;
 /**
  * @author yong.liang
  */
-public interface server {
+public interface Server {
 
     void start();
 
