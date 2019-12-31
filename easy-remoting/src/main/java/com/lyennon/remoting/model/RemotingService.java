@@ -1,4 +1,4 @@
-package com.lyennon.remoting;
+package com.lyennon.remoting.model;
 
 public interface RemotingService {
 
