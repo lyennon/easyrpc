@@ -9,6 +9,7 @@ import com.lyennon.remoting.model.RemotingTransporter;
 import com.lyennon.remoting.model.ResponseFuture;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
+import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
@@ -17,21 +18,27 @@ import io.netty.channel.socket.nio.NioSocketChannel;
  */
 public class NettyRemotingClient implements ClientRemotingService, Server {
 
-    private DefaultEventLoopGroup defaultEventLoopGroup;
+    private EventLoopGroup defaultEventLoopGroup;
 
     private DefaultNettyProcessor nettyProcessor;
 
     private Bootstrap bootstrap;
 
     public void init() {
-        this.defaultEventLoopGroup = new DefaultEventLoopGroup(1, new NamedThreadFactory("NettyClientSelector"));
+        this.defaultEventLoopGroup = new NioEventLoopGroup(1, new NamedThreadFactory("NettyClientSelector"));
+        this.nettyProcessor = new DefaultNettyProcessor();
     }
 
     @Override
     public RemotingTransporter invokeSync(String addr, RemotingTransporter request,
                                           long timeoutMillis) throws InterruptedException {
-        ChannelFuture channel = this.bootstrap.connect(RemotingUtils.string2SocketAddress(addr));
-        return this.invokeSync(channel.channel(), request, timeoutMillis);
+        ChannelFuture channelFuture = this.bootstrap.connect(RemotingUtils.string2SocketAddress(addr));
+        channelFuture.awaitUninterruptibly(10000);
+        if(channelFuture.channel() != null && channelFuture.channel().isActive()){
+            return this.invokeSync(channelFuture.channel(), request, timeoutMillis);
+        }else {
+            throw new RuntimeException("invoke syanc failure");
+        }
     }
 
     @Override
@@ -95,7 +102,7 @@ public class NettyRemotingClient implements ClientRemotingService, Server {
         bootstrap.group(defaultEventLoopGroup)
                 .channel(NioSocketChannel.class)
                 .option(ChannelOption.TCP_NODELAY, true)
-                .option(ChannelOption.SO_KEEPALIVE, false)
+//                .option(ChannelOption.SO_KEEPALIVE, false)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 3000)
                 .option(ChannelOption.SO_SNDBUF, 65535)
                 .option(ChannelOption.SO_RCVBUF, 65535)
@@ -105,7 +112,7 @@ public class NettyRemotingClient implements ClientRemotingService, Server {
                         ChannelPipeline pipeline = ch.pipeline();
                         pipeline.addLast(new RemotingTransporterEncoder(),
                                 new RemotingTransporterDecoder(),
-                                new NettyClientHandler());
+                                new NettyClientHandler(nettyProcessor));
                     }
                 });
 

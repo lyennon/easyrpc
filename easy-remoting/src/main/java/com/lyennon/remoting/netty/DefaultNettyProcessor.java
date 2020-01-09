@@ -38,7 +38,7 @@ public class DefaultNettyProcessor implements NettyProcessor, RequestProcessorRe
             int code = request.getCode();
             processor = requestProcessors.get(code);
         } else if (transporterType == EasyProtocol.RESPONSE_REMOTING) {
-            long code = request.getCode();
+            long code = request.getOpaque();
             processor = responseProcessors.get(code);
         } else {
             throw new RuntimeException("transporterType exception");

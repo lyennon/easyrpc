@@ -14,7 +14,8 @@ public class RemotingTransporterEncoder extends MessageToByteEncoder<RemotingTra
 
     @Override
     protected void encode(ChannelHandlerContext ctx, RemotingTransporter msg, ByteBuf out) throws Exception {
-        byte[] bytes = SerializerHolder.get().writeObject(msg);
+//        byte[] bytes = SerializerHolder.get().writeObject(msg);
+        byte[] bytes = msg.getBytes();
         out.writeShort(EasyProtocol.MAGIC)
             .writeByte(msg.getTransporterType())
             .writeByte(msg.getCode())

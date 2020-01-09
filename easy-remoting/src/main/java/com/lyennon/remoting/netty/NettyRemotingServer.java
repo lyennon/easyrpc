@@ -9,11 +9,9 @@ import com.lyennon.remoting.common.RemotingUtils;
 import com.lyennon.remoting.model.NettyServerConfig;
 import com.lyennon.remoting.model.RemotingTransporter;
 import com.lyennon.remoting.NettyProcessor;
+import com.lyennon.remoting.model.ResponseFuture;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
+import io.netty.channel.*;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -30,11 +28,11 @@ public class NettyRemotingServer implements Server, RequestProcessorRegistry, Re
 
     private EventExecutorGroup defaultEventExecutorGroup;
 
-    private DefaultNettyProcessor defaultRequestProcessor;
+    private DefaultNettyProcessor nettyProcessor;
 
     public void init(){
         this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(1, new NamedThreadFactory("NettyServerCodecThread"));
-        this.defaultRequestProcessor = new DefaultNettyProcessor();
+        this.nettyProcessor = new DefaultNettyProcessor();
     }
 
     @Override
@@ -43,10 +41,11 @@ public class NettyRemotingServer implements Server, RequestProcessorRegistry, Re
         ServerBootstrap serverBootstrap = new ServerBootstrap();
         serverBootstrap.group(eventLoopGroup)
                 .channel(useEpoll() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
-                .localAddress(new InetSocketAddress(serverConfig.getIp(),serverConfig.getPort()))
+//                .localAddress(new InetSocketAddress(serverConfig.getIp(),serverConfig.getPort()))
+                .localAddress(new InetSocketAddress("127.0.0.1",9090))
                 .option(ChannelOption.SO_BACKLOG, 1024)
                 .option(ChannelOption.SO_REUSEADDR, true)
-                .option(ChannelOption.SO_KEEPALIVE, false)
+//                .option(ChannelOption.SO_KEEPALIVE, false)
                 .childOption(ChannelOption.TCP_NODELAY, true)
                 .childOption(ChannelOption.SO_SNDBUF, 65535)
                 .childOption(ChannelOption.SO_RCVBUF, 65535)
@@ -56,13 +55,16 @@ public class NettyRemotingServer implements Server, RequestProcessorRegistry, Re
                         ch.pipeline().addLast(defaultEventExecutorGroup,
                                 new RemotingTransporterDecoder(),
                                 new RemotingTransporterEncoder(),
-                                new NettyServerHandler(defaultRequestProcessor));
+                                new NettyServerHandler(nettyProcessor));
                     }
                 });
         try {
             ChannelFuture sync = serverBootstrap.bind().sync();
-        } catch (InterruptedException e) {
-            throw new RuntimeException("this.serverBootstrap.bind().sync() InterruptedException", e);
+            InetSocketAddress addr = (InetSocketAddress) sync.channel().localAddress();
+            int port = addr.getPort();
+            System.out.println(port);
+        } catch (InterruptedException e1) {
+            throw new RuntimeException("this.serverBootstrap.bind().sync() InterruptedException", e1);
         }
     }
 
@@ -82,22 +84,69 @@ public class NettyRemotingServer implements Server, RequestProcessorRegistry, Re
 
     @Override
     public void registerProcessor(Integer code, NettyProcessor nettyProcessor) {
-        this.defaultRequestProcessor.registerProcessor(code, nettyProcessor);
+        this.nettyProcessor.registerProcessor(code, nettyProcessor);
     }
 
-    @Override public RemotingTransporter invokeSync(Channel channel, RemotingTransporter request,
-        long timeoutMillis) {
-        return null;
-    }
+    @Override
+    public RemotingTransporter invokeSync(Channel channel, RemotingTransporter request,
+        long timeoutMillis) throws InterruptedException {
+        final long opaque = request.getOpaque();
+        final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis, null);
+        nettyProcessor.registerResponseProcessor(opaque, new DefaultResponseNettyProcessor(responseFuture));
+        ChannelFuture channelFuture = channel.writeAndFlush(request);
+        channelFuture.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture channelFuture) throws Exception {
+                if (channelFuture.isSuccess()) {
+                    responseFuture.setSendRequestOK(true);
+                    return;
+                }
+                responseFuture.setSendRequestOK(false);
+                responseFuture.setCause(channelFuture.cause());
+                responseFuture.putResponse(null);
+            }
+        });
+        RemotingTransporter responseCommand = responseFuture.waitResponse(timeoutMillis);
+        if (null == responseCommand) {
+            if (responseFuture.isSendRequestOK()) {
+                throw new RuntimeException("time out");
+            } else {
+                throw new RuntimeException("send request failure");
+            }
+        }
+        return responseCommand;    }
 
     @Override
     public void invokeAsync(Channel channel, RemotingTransporter request, long timeoutMillis,
         InvokeCallback invokeCallback) {
+        final long opaque = request.getOpaque();
+        final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis, invokeCallback);
+        this.nettyProcessor.registerResponseProcessor(opaque,new DefaultResponseNettyProcessor(responseFuture));
+        ChannelFuture channelFuture = channel.writeAndFlush(request);
+        channelFuture.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture channelFuture) throws Exception {
+                if (channelFuture.isSuccess()) {
+                    responseFuture.setSendRequestOK(true);
+                    return;
+                }
 
+                nettyProcessor.unRegisterResponseProcessor(opaque);
+                requestFail(responseFuture);
+            }
+        });
     }
 
     @Override
     public void invokeOneway(Channel channel, RemotingTransporter request, long timeoutMillis) {
 
+    }
+
+    private void requestFail(ResponseFuture responseFuture) {
+        if (responseFuture != null) {
+            responseFuture.setSendRequestOK(false);
+            responseFuture.putResponse(null);
+            responseFuture.executeInvokeCallback();
+        }
     }
 }
