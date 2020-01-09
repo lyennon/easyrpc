@@ -1,5 +1,8 @@
 package com.lyennon.remoting.common;
 
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+
 public class RemotingUtils {
 
     public static final String OS_NAME = System.getProperty("os.name");
@@ -19,5 +22,10 @@ public class RemotingUtils {
 
     public static boolean isLinuxPlatform() {
         return isLinuxPlatform;
+    }
+
+    public static SocketAddress string2SocketAddress(final String addr) {
+        String[] s = addr.split(":");
+        return new InetSocketAddress(s[0], Integer.parseInt(s[1]));
     }
 }

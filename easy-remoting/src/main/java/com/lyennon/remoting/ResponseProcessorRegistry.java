@@ -5,6 +5,7 @@ package com.lyennon.remoting;
  */
 public interface ResponseProcessorRegistry {
 
-    void registerResponseProcessor(Integer code, NettyProcessor nettyProcessor);
+    void registerResponseProcessor(Long code, NettyProcessor nettyProcessor);
 
+    void unRegisterResponseProcessor(Long code);
 }

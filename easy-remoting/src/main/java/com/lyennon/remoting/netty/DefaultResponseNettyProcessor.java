@@ -6,6 +6,8 @@ import com.lyennon.remoting.model.ResponseFuture;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.concurrent.ExecutorService;
+
 /**
  * @author yong.liang
  */
@@ -22,17 +24,21 @@ public class DefaultResponseNettyProcessor implements NettyProcessor {
     }
 
     @Override
-    public RemotingTransporter process(ChannelHandlerContext ctx, RemotingTransporter request) {
+    public RemotingTransporter process(ChannelHandlerContext ctx, RemotingTransporter response) {
         if (responseFuture != null) {
-            responseFuture.setResponseCommand(cmd);
+            responseFuture.setResponseCommand(response);
             if (responseFuture.getInvokeCallback() != null) {
                 executeInvokeCallback(responseFuture);
             } else {
-                responseFuture.putResponse(cmd);
-                responseFuture.release();
+                responseFuture.putResponse(response);
             }
         } else {
             log.warn("receive response, but not matched any request, " + ctx.channel().localAddress());
         }
+        return null;
+    }
+
+    private void executeInvokeCallback(final ResponseFuture responseFuture) {
+        responseFuture.executeInvokeCallback();
     }
 }

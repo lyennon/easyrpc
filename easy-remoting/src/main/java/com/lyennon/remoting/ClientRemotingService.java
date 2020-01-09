@@ -8,7 +8,7 @@ import com.lyennon.remoting.model.RemotingTransporter;
 public interface ClientRemotingService extends RemotingService {
 
     RemotingTransporter invokeSync(final String addr, final RemotingTransporter request,
-        final long timeoutMillis);
+        final long timeoutMillis) throws InterruptedException;
 
     void invokeAsync(final String addr, final RemotingTransporter request, final long timeoutMillis,
         final InvokeCallback invokeCallback);

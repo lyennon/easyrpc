@@ -8,7 +8,7 @@ import io.netty.channel.Channel;
  */
 public interface RemotingService {
     RemotingTransporter invokeSync(final Channel channel, final RemotingTransporter request,
-        final long timeoutMillis);
+        final long timeoutMillis) throws InterruptedException;
 
     void invokeAsync(final Channel channel, final RemotingTransporter request, final long timeoutMillis,
         final InvokeCallback invokeCallback);
