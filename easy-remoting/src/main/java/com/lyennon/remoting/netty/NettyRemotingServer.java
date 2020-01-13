@@ -57,6 +57,7 @@ public class NettyRemotingServer implements Server, RequestProcessorRegistry, Re
                                 new RemotingTransporterDecoder(),
                                 new RemotingTransporterEncoder(),
                                 new IdleStateHandler(0,0,60),
+                                new ConnectionManagerHandler(),
                                 new NettyServerHandler(nettyProcessor));
                     }
                 });
