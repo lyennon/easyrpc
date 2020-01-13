@@ -17,6 +17,7 @@ import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.concurrent.DefaultEventExecutorGroup;
 import io.netty.util.concurrent.EventExecutorGroup;
 
@@ -55,6 +56,7 @@ public class NettyRemotingServer implements Server, RequestProcessorRegistry, Re
                         ch.pipeline().addLast(defaultEventExecutorGroup,
                                 new RemotingTransporterDecoder(),
                                 new RemotingTransporterEncoder(),
+                                new IdleStateHandler(0,0,60),
                                 new NettyServerHandler(nettyProcessor));
                     }
                 });
